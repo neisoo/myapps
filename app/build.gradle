@@ -19,5 +19,5 @@ android {
 }
 
 dependencies {
-    compile files('libs/cordova-2.6.0.jar')
+    compile files('libs/cordova-8.1.0.aar')
 }

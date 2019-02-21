@@ -10,7 +10,7 @@ import java.io.OutputStream;
 import android.os.Bundle;
 import android.util.Log;
 
-import org.apache.cordova.*;
+import org.apache.cordova.CordovaActivity;
 
 import android.app.AlertDialog;
 
@@ -20,11 +20,23 @@ import android.content.DialogInterface;
 import android.content.pm.ActivityInfo;
 import com.myapp.R;
 
-public class myApp extends DroidGap
+public class myApp extends CordovaActivity
 {
     @Override
     public void onCreate(Bundle savedInstanceState)
     {
+        super.onCreate(savedInstanceState);
+
+        // enable Cordova apps to be started in the background
+        Bundle extras = getIntent().getExtras();
+        if (extras != null && extras.getBoolean("cdvStartInBackground", false)) {
+            moveTaskToBack(true);
+        }
+
+        // Set by <content src="index.html" /> in config.xml
+        loadUrl(launchUrl);
+
+        /*
     	Boolean isInternetPresent=false;
     	super.onCreate(savedInstanceState);
     	this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);//固定屏幕方向
@@ -43,7 +55,8 @@ public class myApp extends DroidGap
     	} else {
            //网络连接失败
     		showAlertDialog(myApp.this, "网络不正常","网络无法连接");         
-    	}            
+    	}
+    	  */
     }
     //显示对话框提示
     public void showAlertDialog(Context context, String title, String message) {

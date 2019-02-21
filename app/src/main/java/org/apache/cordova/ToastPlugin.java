@@ -1,5 +1,5 @@
 package org.apache.cordova;
-
+/*
 import org.apache.cordova.api.CallbackContext;
 import org.apache.cordova.api.CordovaInterface;
 import org.apache.cordova.api.CordovaPlugin;
@@ -28,3 +28,4 @@ public class ToastPlugin extends CordovaPlugin {
          this.cordova.getActivity().runOnUiThread(runnable);
     }
 }
+*/
