@@ -106,6 +106,6 @@
     </content>
     <orderEntry type="jdk" jdkName="Android API 18 Platform (1)" jdkType="Android SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="__local_aars__:D.\Android\apps\myapps\app\libs\cordova-2.6.0.jar:unspecified@jar" level="project" />
+    <orderEntry type="library" name="__local_aars__:C.\Users\zhongyh\.gradle\caches\transforms-1\files-1.1\cordova-8.1.0.aar\8627ed4768b523f10789beb6b45b72d5:unspecified@jar" level="project" />
   </component>
 </module>
