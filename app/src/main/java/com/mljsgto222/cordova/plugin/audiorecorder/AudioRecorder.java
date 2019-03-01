@@ -173,8 +173,11 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
                     }
                 };
 
-                recoderOgg = new VorbisRecorder(oggFile, recordingHandler);
-                recoderOgg.start(sampleRateOgg, numberOfChannelsOgg, bitrateOgg);
+                if(recoderOgg == null || !recoderOgg.isRecording()){
+                    recoderOgg = new VorbisRecorder(oggFile, recordingHandler);
+                    recoderOgg.start(sampleRateOgg, numberOfChannelsOgg, bitrateOgg);
+                }
+                callbackContext.success();
             }catch (IOException ex){
                 Log.e(TAG, ex.getMessage());
             }

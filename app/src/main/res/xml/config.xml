@@ -22,7 +22,7 @@
     <!--访问本地资源中的网页-->
     <!--<content src="index.html" />-->
     <!--<content src="http://192.168.5.122/bbs" />-->
-    <content src="index.html" />
+    <content src="http://192.168.5.122/bbs" />
 
     <!-- A wildcard can be used to whitelist the entire network,
      over HTTP and HTTPS.
