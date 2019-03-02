@@ -4,6 +4,10 @@
         <param name="android-package" value="org.apache.cordova.whitelist.WhitelistPlugin" />
         <param name="onload" value="true" />
     </feature>
+    <feature name="File">
+        <param name="android-package" value="org.apache.cordova.file.FileUtils" />
+        <param name="onload" value="true" />
+    </feature>
     <feature name="AudioInputCapture">
         <param name="android-package" value="com.exelerus.cordova.audioinputcapture.AudioInputCapture" />
         <param name="onload" value="true" />
@@ -22,7 +26,8 @@
     <!--访问本地资源中的网页-->
     <!--<content src="index.html" />-->
     <!--<content src="http://192.168.5.122/bbs" />-->
-    <content src="http://192.168.5.122/bbs" />
+    <!--<content src="http://192.168.1.164/bbs" />-->
+    <content src="index.html" />
 
     <!-- A wildcard can be used to whitelist the entire network,
      over HTTP and HTTPS.
