@@ -432,10 +432,8 @@ public class VorbisRecorder {
 
         @Override
         public long readPCMData(byte[] pcmDataBuffer, int amountToRead) {
-            Log.i(TAG, "r+++++++++++++++++");
             //If we are no longer recording, return 0 to let the native encoder know
             if (isStopped() || isStopping()) {
-                Log.i(TAG, "r---------1");
                 return 0;
             }
 
@@ -443,10 +441,8 @@ public class VorbisRecorder {
             try {
                 int readBytes = inputStream.read(pcmDataBuffer, 0, amountToRead);
                 if (readBytes <= 0) {
-                    Log.i(TAG, "r---------3");
                     readBytes =  0; // Told the end of input file.
                 }
-                Log.i(TAG, "r---------2:" + readBytes);
                 return readBytes;
             }
             catch (IOException e) {
@@ -454,21 +450,17 @@ public class VorbisRecorder {
                 Log.e(TAG, "Failed to read PCM data from file, stopping recording", e);
                 stop();
             }
-            Log.i(TAG, "r---------3");
 
             return 0;
         }
 
         @Override
         public int writeVorbisData(byte[] vorbisData, int amountToWrite) {
-            Log.i(TAG, "w+++++++++++++++++");
-
             //If we have data to write and we are recording, write the data
             if (vorbisData != null && amountToWrite > 0 && outputStream != null && !isStopped()) {
                 try {
                     //Write the data to the output stream
                     outputStream.write(vorbisData, 0, amountToWrite);
-                    Log.i(TAG, "w---------1");
                     return amountToWrite;
                 } catch (IOException e) {
                     //Failed to write to the file
@@ -477,7 +469,6 @@ public class VorbisRecorder {
                 }
             }
             //Otherwise let the native encoder know we are done
-            Log.i(TAG, "w---------2");
             return 0;
         }
 
