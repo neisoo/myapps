@@ -10,11 +10,14 @@ import android.util.Log;
 import org.xiph.vorbis.encoder.EncodeFeed;
 import org.xiph.vorbis.encoder.VorbisEncoder;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -406,6 +409,147 @@ public class VorbisRecorder {
     }
 
     /**
+     * Helper class that implements {@link EncodeFeed} that will write the processed vorbis data to a file and will
+     * read raw PCM file.
+     */
+    private class File2FileEncodeFeed implements EncodeFeed {
+        private final File filePCM;
+        private InputStream inputStream;
+        private final File fileToSaveTo;
+        private OutputStream outputStream;
+
+        public File2FileEncodeFeed(File filePCM, File fileToSaveTo) {
+            if (filePCM == null) {
+                throw new IllegalArgumentException("File to input must not be null");
+            }
+            this.filePCM = filePCM;
+
+            if (fileToSaveTo == null) {
+                throw new IllegalArgumentException("File to input must not be null");
+            }
+            this.fileToSaveTo = fileToSaveTo;
+        }
+
+        @Override
+        public long readPCMData(byte[] pcmDataBuffer, int amountToRead) {
+            Log.i(TAG, "r+++++++++++++++++");
+            //If we are no longer recording, return 0 to let the native encoder know
+            if (isStopped() || isStopping()) {
+                Log.i(TAG, "r---------1");
+                return 0;
+            }
+
+            //Otherwise read from the PCM file.
+            try {
+                int readBytes = inputStream.read(pcmDataBuffer, 0, amountToRead);
+                if (readBytes <= 0) {
+                    Log.i(TAG, "r---------3");
+                    readBytes =  0; // Told the end of input file.
+                }
+                Log.i(TAG, "r---------2:" + readBytes);
+                return readBytes;
+            }
+            catch (IOException e) {
+                //Failed to read PCM file.
+                Log.e(TAG, "Failed to read PCM data from file, stopping recording", e);
+                stop();
+            }
+            Log.i(TAG, "r---------3");
+
+            return 0;
+        }
+
+        @Override
+        public int writeVorbisData(byte[] vorbisData, int amountToWrite) {
+            Log.i(TAG, "w+++++++++++++++++");
+
+            //If we have data to write and we are recording, write the data
+            if (vorbisData != null && amountToWrite > 0 && outputStream != null && !isStopped()) {
+                try {
+                    //Write the data to the output stream
+                    outputStream.write(vorbisData, 0, amountToWrite);
+                    Log.i(TAG, "w---------1");
+                    return amountToWrite;
+                } catch (IOException e) {
+                    //Failed to write to the file
+                    Log.e(TAG, "Failed to write data to file, stopping recording", e);
+                    stop();
+                }
+            }
+            //Otherwise let the native encoder know we are done
+            Log.i(TAG, "w---------2");
+            return 0;
+        }
+
+        @Override
+        public void stop() {
+            recordHandler.sendEmptyMessage(STOP_ENCODING);
+
+            if (isRecording() || isStopping()) {
+                //Set our state to stopped
+                currentState.set(RecorderState.STOPPED);
+
+                //Close the output stream
+                if (outputStream != null) {
+                    try {
+                        outputStream.flush();
+                        outputStream.close();
+                    } catch (IOException e) {
+                        Log.e(TAG, "Failed to close output stream", e);
+                    }
+                    outputStream = null;
+                }
+
+                //Close the input stream
+                if (inputStream != null) {
+                    try {
+                        inputStream.close();
+                    } catch (IOException e) {
+                        Log.e(TAG, "Failed to close input stream", e);
+                    }
+                    inputStream = null;
+                }
+            }
+        }
+
+        @Override
+        public void stopEncoding() {
+            if (isRecording()) {
+                //Set our state to stopped
+                currentState.set(RecorderState.STOPPING);
+            }
+        }
+
+        @Override
+        public void start() {
+            if (isStopped()) {
+                recordHandler.sendEmptyMessage(START_ENCODING);
+
+                //Start recording
+                currentState.set(RecorderState.RECORDING);
+
+                //Create the input stream
+                if (inputStream == null) {
+                    try {
+                        inputStream = new BufferedInputStream(new FileInputStream(filePCM));
+                    } catch (FileNotFoundException e) {
+                        Log.e(TAG, "Failed to read pcm file", e);
+                    }
+                }
+
+                //Create the output stream
+                if (outputStream == null) {
+                    try {
+                        outputStream = new BufferedOutputStream(new FileOutputStream(fileToSaveTo));
+                    } catch (FileNotFoundException e) {
+                        Log.e(TAG, "Failed to write to file", e);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Constructs a recorder that will record an ogg file
      *
      * @param fileToSaveTo  the file to save to
@@ -437,6 +581,27 @@ public class VorbisRecorder {
         }
 
         this.encodeFeed = new OutputStreamEncodeFeed(streamToWriteTo);
+        this.recordHandler = recordHandler;
+    }
+
+    /**
+     * Constructs a recorder that will encode a pcm file to  an ogg file
+     *
+     * @param filePCM  the raw pcm file to read
+     * @param fileToSaveTo  the file to save to
+     * @param recordHandler the handler for receiving status updates about the recording process
+     */
+    public VorbisRecorder(File filePCM, File fileToSaveTo, Handler recordHandler) {
+        if (fileToSaveTo == null) {
+            throw new IllegalArgumentException("File to play must not be null.");
+        }
+
+        //Delete the file if it exists
+        if (fileToSaveTo.exists()) {
+            fileToSaveTo.deleteOnExit();
+        }
+
+        this.encodeFeed = new File2FileEncodeFeed(filePCM, fileToSaveTo);
         this.recordHandler = recordHandler;
     }
 

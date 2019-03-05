@@ -32,6 +32,8 @@ import java.net.URI;
 public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnCompletionListener, MediaPlayer.OnErrorListener {
     private static final String TAG = AudioRecorder.class.getName();
 
+    private static final String IN_FILE_NAME = "inFileName";
+    private static final String OUT_NUMBER_OF_CHANNELS = "outNumberOfChannels";
     private static final String OUT_ENCODE_FORMAT = "outEncodeFormat";
     private static final String OUT_SAMPLING_RATE = "outSamplingRate";
     private static final String OUT_BIT_RATE = "outBitRate";
@@ -55,6 +57,10 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
     private int numberOfChannelsOgg = 1;
     private int bitrateOgg = 128000;
 
+    private CallbackContext encodeCallback; // Ogg编码器
+    private VorbisRecorder encoderOgg = null;
+    private File encodeOggFile = null; // 保存编码结果的Ogg文件。
+
 
     @Override
     public boolean execute(String action, JSONArray args, CallbackContext callbackContext) {
@@ -77,7 +83,10 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
             stopSound(callbackContext);
             return true;
         }
-
+        else if (action.equals("encoder")) {
+            encoder(args, callbackContext);
+            return true;
+        }
         return false;
     }
 
@@ -147,33 +156,32 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
                     Log.e(TAG, ex.getMessage());
                 }
 
-                Handler recordingHandler = new Handler() {
-                    @Override
-                    public void handleMessage(Message msg) {
-                        switch (msg.what) {
-                            case VorbisRecorder.START_ENCODING:
-                                Log.i(TAG, "Starting to encode");
-                                break;
-                            case VorbisRecorder.STOP_ENCODING:
-                                Log.i(TAG, "Stopping the encoder");
-                                break;
-                            case VorbisRecorder.UNSUPPORTED_AUDIO_TRACK_RECORD_PARAMETERS:
-                                Log.i(TAG, "You're device does not support this configuration");
-                                break;
-                            case VorbisRecorder.ERROR_INITIALIZING:
-                                Log.i(TAG, "There was an error initializing.  Try changing the recording configuration");
-                                break;
-                            case VorbisRecorder.FAILED_FOR_UNKNOWN_REASON:
-                                Log.i(TAG, "The encoder failed for an unknown reason!");
-                                break;
-                            case VorbisRecorder.FINISHED_SUCCESSFULLY:
-                                Log.i(TAG, "The encoder has finished successfully");
-                                break;
-                        }
-                    }
-                };
-
                 if(recoderOgg == null || !recoderOgg.isRecording()){
+                    Handler recordingHandler = new Handler() {
+                        @Override
+                        public void handleMessage(Message msg) {
+                            switch (msg.what) {
+                                case VorbisRecorder.START_ENCODING:
+                                    Log.i(TAG, "Starting to encode");
+                                    break;
+                                case VorbisRecorder.STOP_ENCODING:
+                                    Log.i(TAG, "Stopping the encoder");
+                                    break;
+                                case VorbisRecorder.UNSUPPORTED_AUDIO_TRACK_RECORD_PARAMETERS:
+                                    Log.i(TAG, "You're device does not support this configuration");
+                                    break;
+                                case VorbisRecorder.ERROR_INITIALIZING:
+                                    Log.i(TAG, "There was an error initializing.  Try changing the recording configuration");
+                                    break;
+                                case VorbisRecorder.FAILED_FOR_UNKNOWN_REASON:
+                                    Log.i(TAG, "The encoder failed for an unknown reason!");
+                                    break;
+                                case VorbisRecorder.FINISHED_SUCCESSFULLY:
+                                    Log.i(TAG, "The encoder has finished successfully");
+                                    break;
+                            }
+                        }
+                    };
                     recoderOgg = new VorbisRecorder(oggFile, recordingHandler);
                     recoderOgg.start(sampleRateOgg, numberOfChannelsOgg, bitrateOgg);
                 }
@@ -400,4 +408,113 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
         callbackContext.success();
     }
 
+    private void encoder(JSONArray args, CallbackContext callbackContext) {
+        String inFileName;
+        String encodeFormat = "ogg";
+        int sampleRate = 44100;
+        int bitrate = 128000;
+        int numberOfChannels = 1;
+
+        // 停止上一次的编码。
+        if (encoderOgg != null && encoderOgg.isRecording()) {
+            encoderOgg.stop();
+            encoderOgg = null;
+            if (this.encodeCallback != null) {
+                this.encodeCallback.error(STATUS_STOP);
+                this.encodeCallback = null;
+            }
+        }
+
+        // 编码完成时的回调。
+        Handler encodeHandler = new Handler() {
+            @Override
+            public void handleMessage(Message msg) {
+                switch (msg.what) {
+                    case VorbisRecorder.FINISHED_SUCCESSFULLY:
+                        if (encodeOggFile != null) {
+                            // 返回ogg数据到网页。
+                            byte[] oggData = null;
+                            try {
+                                FileInputStream is = new FileInputStream(encodeOggFile);
+                                oggData = new byte[is.available()];
+                                is.read(oggData);
+                                is.close();
+                                encodeOggFile.delete();
+                                encodeOggFile = null;
+                            }
+                            catch (FileNotFoundException ex) {
+                                Log.e(TAG, ex.getMessage());
+                            }
+                            catch (IOException ex) {
+                                Log.e(TAG, ex.getMessage());
+                            }
+                            encodeCallback.success(oggData);
+                        }
+                        else {
+                            encodeCallback.error("encode output file not found");
+                        }
+                        Log.i(TAG, "The encoder has finished successfully");
+                        break;
+                }
+            }
+        };
+
+        if (!args.isNull(0)) {
+            try {
+                // 读取参数。
+                JSONObject options = args.getJSONObject(0);
+                if (options.has(IN_FILE_NAME)) {
+                    inFileName = options.getString(IN_FILE_NAME);
+                }
+                else {
+                    callbackContext.error("No IN_FILE_NAME");
+                    return;
+                }
+
+                if (options.has(OUT_NUMBER_OF_CHANNELS)) {
+                    numberOfChannels = options.getInt(OUT_NUMBER_OF_CHANNELS);
+                }
+                if (options.has(OUT_ENCODE_FORMAT)) {
+                    encodeFormat = options.getString(OUT_ENCODE_FORMAT);
+                }
+                if (options.has(OUT_SAMPLING_RATE)){
+                    sampleRate = options.getInt(OUT_SAMPLING_RATE);
+                }
+                if (options.has(OUT_BIT_RATE)){
+                    bitrate = options.getInt(OUT_BIT_RATE);
+                }
+
+                if (encodeFormat.equals("ogg")) {
+                    // 准备输入输出文件
+                    File directory = this.cordova.getActivity().getCacheDir();
+                    inFileName = directory.getPath() + "/" + inFileName;
+                    File inFile = new File(inFileName);
+                    encodeOggFile = File.createTempFile("temp", ".ogg", directory);
+                    encodeOggFile.deleteOnExit();
+
+                    // 启动后台编码
+                    encodeCallback = callbackContext;
+                    encoderOgg = new VorbisRecorder(inFile, encodeOggFile, encodeHandler);
+                    encoderOgg.start(sampleRate, numberOfChannels, bitrate);
+                }
+                else {
+                    callbackContext.error("unsuport encode format.");
+                }
+            }
+            catch (JSONException ex) {
+                Log.e(TAG, ex.getMessage());
+                encoderOgg = null;
+                encodeCallback = null;
+                callbackContext.error(ex.getMessage());
+            }
+            catch (IOException ex) {
+                Log.e(TAG, ex.getMessage());
+                encoderOgg = null;
+                encodeCallback = null;
+                callbackContext.error(ex.getMessage());
+            }
+        }
+
+        return;
+    }
 }

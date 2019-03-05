@@ -160,14 +160,6 @@ module.exports = [
         ]
     },
     {
-        "id": "cordova-plugin-audiorecorder.AudioRecorder",
-        "file": "plugins/cordova-plugin-audiorecorder/www/AudioRecorder.js",
-        "pluginId": "cordova-plugin-audiorecorder",
-        "clobbers": [
-          "audiorecord"
-        ]
-    },
-    {
         "id": "cordova-plugin-audioinput.AudioInput",
         "file": "plugins/cordova-plugin-audioinput/www/audioInputCapture.js",
         "pluginId": "cordova-plugin-audioinput",

@@ -1,13 +1,13 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 22
+    compileSdkVersion 26
     buildToolsVersion "28.0.3"
 
     defaultConfig {
         applicationId "com.myapp"
         minSdkVersion 16
-        targetSdkVersion 22
+        targetSdkVersion 26
     }
 
     buildTypes {
@@ -25,5 +25,5 @@ android {
 }
 
 dependencies {
-    compile files('libs/cordova-8.1.0.aar')
+    implementation files('libs/cordova-8.1.0.aar')
 }
