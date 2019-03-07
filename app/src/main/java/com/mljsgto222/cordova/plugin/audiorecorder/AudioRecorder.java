@@ -95,21 +95,25 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
         if(!isPermissionGranted){
             cordova.requestPermission(this, 1, Manifest.permission.RECORD_AUDIO);
         }
+
         return isPermissionGranted;
     }
 
     @Override
     public void onRequestPermissionResult(int requestCode, String[] permissions, int[] grantResults) throws JSONException {
         switch (requestCode){
-            case 1:{
-                if(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED){
-                    callback.success();
+            case 1: {
+                JSONObject json = new JSONObject();
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED){
+                    json.put("hasPermission", true);
                 } else {
-                    callback.error("user permission denied");
+                    json.put("hasPermission", false);
                 }
-                break;
+                callback.success(json);
+                return;
             }
         }
+        callback.error("request code doesn't support");
     }
 
     private void startRecord(JSONArray args, CallbackContext callbackContext){
@@ -183,11 +187,16 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
                         }
                     };
                     recoderOgg = new VorbisRecorder(oggFile, recordingHandler);
-                    recoderOgg.start(sampleRateOgg, numberOfChannelsOgg, bitrateOgg);
+                    callback = callbackContext;
+                    if(requestRecordPermission()){
+                        recoderOgg.start(sampleRateOgg, numberOfChannelsOgg, bitrateOgg);
+                        callbackContext.success();
+                    }
                 }
                 callbackContext.success();
             }catch (IOException ex){
                 Log.e(TAG, ex.getMessage());
+                callbackContext.error(ex.getMessage());
             }
 
             return;
@@ -314,10 +323,8 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
     }
 
     private void requestPermission(CallbackContext callbackContext) {
-
-        if (!this.requestRecordPermission()) {
-            this.callback = callbackContext;
-        } else {
+        callback = callbackContext;
+        if (this.requestRecordPermission()) {
             callbackContext.success();
         }
     }
