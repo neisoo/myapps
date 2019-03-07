@@ -59,6 +59,7 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
 
     private CallbackContext encodeCallback; // Ogg编码器
     private VorbisRecorder encoderOgg = null;
+    private File encodeInputPCMFile = null; // 保存编码结果的Ogg文件。
     private File encodeOggFile = null; // 保存编码结果的Ogg文件。
 
 
@@ -448,6 +449,8 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
                                 is.close();
                                 encodeOggFile.delete();
                                 encodeOggFile = null;
+                                encodeInputPCMFile.delete();
+                                encodeInputPCMFile = null;
                             }
                             catch (FileNotFoundException ex) {
                                 Log.e(TAG, ex.getMessage());
@@ -495,13 +498,13 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
                     // 准备输入输出文件
                     File directory = this.cordova.getActivity().getCacheDir();
                     inFileName = directory.getPath() + "/" + inFileName;
-                    File inFile = new File(inFileName);
+                    encodeInputPCMFile = new File(inFileName);
                     encodeOggFile = File.createTempFile("temp", ".ogg", directory);
                     encodeOggFile.deleteOnExit();
 
                     // 启动后台编码
                     encodeCallback = callbackContext;
-                    encoderOgg = new VorbisRecorder(inFile, encodeOggFile, encodeHandler);
+                    encoderOgg = new VorbisRecorder(encodeInputPCMFile, encodeOggFile, encodeHandler);
                     encoderOgg.start(sampleRate, numberOfChannels, bitrate);
                 }
                 else {
