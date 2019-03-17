@@ -27,7 +27,7 @@
     <!--<content src="index.html" />-->
     <!--<content src="http://192.168.5.122/bbs" />-->
     <!--<content src="http://192.168.1.164/bbs" />-->
-    <content src="http://192.168.5.122/bbs" />
+    <content src="http://192.168.1.164/bbs/forum.php?mod=guide" />
 
     <!-- A wildcard can be used to whitelist the entire network,
      over HTTP and HTTPS.
