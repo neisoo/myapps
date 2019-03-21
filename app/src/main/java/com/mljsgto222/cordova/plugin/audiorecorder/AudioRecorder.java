@@ -9,6 +9,7 @@ import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
+import android.util.Base64;
 import android.util.Log;
 
 import org.apache.cordova.CordovaPlugin;
@@ -20,10 +21,17 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.xiph.vorbis.recorder.VorbisRecorder;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
 
 /**
@@ -32,7 +40,6 @@ import java.net.URI;
 public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnCompletionListener, MediaPlayer.OnErrorListener {
     private static final String TAG = AudioRecorder.class.getName();
 
-    private static final String IN_FILE_NAME = "inFileName";
     private static final String OUT_NUMBER_OF_CHANNELS = "outNumberOfChannels";
     private static final String OUT_ENCODE_FORMAT = "outEncodeFormat";
     private static final String OUT_SAMPLING_RATE = "outSamplingRate";
@@ -59,6 +66,9 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
 
     private CallbackContext encodeCallback; // Ogg编码器
     private VorbisRecorder encoderOgg = null;
+    private ByteArrayInputStream oggInputStream = null;
+    private ByteArrayOutputStream oggOutputStream = null;
+
     private File encodeInputPCMFile = null; // 保存编码结果的Ogg文件。
     private File encodeOggFile = null; // 保存编码结果的Ogg文件。
 
@@ -434,52 +444,49 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
         }
 
         // 编码完成时的回调。
-        Handler encodeHandler = new Handler() {
+        Handler encodeHandler = new Handler(new Handler.Callback() {
             @Override
-            public void handleMessage(Message msg) {
+            public boolean handleMessage(Message msg) {
                 switch (msg.what) {
                     case VorbisRecorder.FINISHED_SUCCESSFULLY:
-                        if (encodeOggFile != null) {
-                            // 返回ogg数据到网页。
-                            byte[] oggData = null;
-                            try {
-                                FileInputStream is = new FileInputStream(encodeOggFile);
-                                oggData = new byte[is.available()];
-                                is.read(oggData);
-                                is.close();
-                                encodeOggFile.delete();
-                                encodeOggFile = null;
-                                encodeInputPCMFile.delete();
-                                encodeInputPCMFile = null;
-                            }
-                            catch (FileNotFoundException ex) {
-                                Log.e(TAG, ex.getMessage());
-                            }
-                            catch (IOException ex) {
-                                Log.e(TAG, ex.getMessage());
-                            }
-                            encodeCallback.success(oggData);
+                        // 返回ogg数据到网页。
+                        byte[] oggData = oggOutputStream.toByteArray();
+                        encodeCallback.success(oggData);
+                        try {
+                            oggInputStream.close();
+                            oggInputStream = null;
+                            oggOutputStream.close();
+                            oggOutputStream = null;
                         }
-                        else {
-                            encodeCallback.error("encode output file not found");
+                        catch (IOException ex) {
+                            Log.i(TAG, "Close stream fail:" + ex.getMessage());
                         }
+
                         Log.i(TAG, "The encoder has finished successfully");
                         break;
+                    case VorbisRecorder.ERROR_INITIALIZING:
+                    case VorbisRecorder.FAILED_FOR_UNKNOWN_REASON:
+                        try {
+                            oggInputStream.close();
+                            oggInputStream = null;
+                            oggOutputStream.close();
+                            oggOutputStream = null;
+                        }
+                        catch (IOException ex) {
+                            Log.i(TAG, "Close stream fail:" + ex.getMessage());
+                        }
+                        Log.i(TAG, "The encoder has fail.");
+                        break;
                 }
+                return true;
             }
-        };
+        });
 
         if (!args.isNull(0)) {
             try {
                 // 读取参数。
                 JSONObject options = args.getJSONObject(0);
-                if (options.has(IN_FILE_NAME)) {
-                    inFileName = options.getString(IN_FILE_NAME);
-                }
-                else {
-                    callbackContext.error("No IN_FILE_NAME");
-                    return;
-                }
+                String data = args.getString(1);
 
                 if (options.has(OUT_NUMBER_OF_CHANNELS)) {
                     numberOfChannels = options.getInt(OUT_NUMBER_OF_CHANNELS);
@@ -495,16 +502,11 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
                 }
 
                 if (encodeFormat.equals("ogg")) {
-                    // 准备输入输出文件
-                    File directory = this.cordova.getActivity().getCacheDir();
-                    inFileName = directory.getPath() + "/" + inFileName;
-                    encodeInputPCMFile = new File(inFileName);
-                    encodeOggFile = File.createTempFile("temp", ".ogg", directory);
-                    encodeOggFile.deleteOnExit();
-
                     // 启动后台编码
                     encodeCallback = callbackContext;
-                    encoderOgg = new VorbisRecorder(encodeInputPCMFile, encodeOggFile, encodeHandler);
+                    oggInputStream = new ByteArrayInputStream(Base64.decode(data, Base64.DEFAULT));
+                    oggOutputStream = new ByteArrayOutputStream();
+                    encoderOgg = new VorbisRecorder(oggInputStream, oggOutputStream, encodeHandler);
                     encoderOgg.start(sampleRate, numberOfChannels, bitrate);
                 }
                 else {
@@ -512,12 +514,6 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
                 }
             }
             catch (JSONException ex) {
-                Log.e(TAG, ex.getMessage());
-                encoderOgg = null;
-                encodeCallback = null;
-                callbackContext.error(ex.getMessage());
-            }
-            catch (IOException ex) {
                 Log.e(TAG, ex.getMessage());
                 encoderOgg = null;
                 encodeCallback = null;
