@@ -437,6 +437,21 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
         if (encoderOgg != null && encoderOgg.isRecording()) {
             encoderOgg.stop();
             encoderOgg = null;
+
+            try {
+                if (oggInputStream != null) {
+                    oggInputStream.close();
+                    oggInputStream = null;
+                }
+                if (oggOutputStream != null) {
+                    oggOutputStream.close();
+                    oggOutputStream = null;
+                }
+            }
+            catch (IOException ex) {
+                Log.i(TAG, "Close stream fail:" + ex.getMessage());
+            }
+
             if (this.encodeCallback != null) {
                 this.encodeCallback.error(STATUS_STOP);
                 this.encodeCallback = null;
@@ -453,10 +468,14 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
                         byte[] oggData = oggOutputStream.toByteArray();
                         encodeCallback.success(oggData);
                         try {
-                            oggInputStream.close();
-                            oggInputStream = null;
-                            oggOutputStream.close();
-                            oggOutputStream = null;
+                            if (oggInputStream != null) {
+                                oggInputStream.close();
+                                oggInputStream = null;
+                            }
+                            if (oggOutputStream != null) {
+                                oggOutputStream.close();
+                                oggOutputStream = null;
+                            }
                         }
                         catch (IOException ex) {
                             Log.i(TAG, "Close stream fail:" + ex.getMessage());
