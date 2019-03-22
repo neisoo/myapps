@@ -69,10 +69,6 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
     private ByteArrayInputStream oggInputStream = null;
     private ByteArrayOutputStream oggOutputStream = null;
 
-    private File encodeInputPCMFile = null; // 保存编码结果的Ogg文件。
-    private File encodeOggFile = null; // 保存编码结果的Ogg文件。
-
-
     @Override
     public boolean execute(String action, JSONArray args, CallbackContext callbackContext) {
         if (action.equals("startRecord")) {
@@ -94,8 +90,12 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
             stopSound(callbackContext);
             return true;
         }
-        else if (action.equals("encoder")) {
-            encoder(args, callbackContext);
+        else if (action.equals("startEncode")) {
+            startEncode(args, callbackContext);
+            return true;
+        }
+        else if (action.equals("stopEncode")) {
+            stopEncode();
             return true;
         }
         return false;
@@ -426,7 +426,7 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
         callbackContext.success();
     }
 
-    private void encoder(JSONArray args, CallbackContext callbackContext) {
+    private void startEncode(JSONArray args, CallbackContext callbackContext) {
         String inFileName;
         String encodeFormat = "ogg";
         int sampleRate = 44100;
@@ -434,29 +434,7 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
         int numberOfChannels = 1;
 
         // 停止上一次的编码。
-        if (encoderOgg != null && encoderOgg.isRecording()) {
-            encoderOgg.stop();
-            encoderOgg = null;
-
-            try {
-                if (oggInputStream != null) {
-                    oggInputStream.close();
-                    oggInputStream = null;
-                }
-                if (oggOutputStream != null) {
-                    oggOutputStream.close();
-                    oggOutputStream = null;
-                }
-            }
-            catch (IOException ex) {
-                Log.i(TAG, "Close stream fail:" + ex.getMessage());
-            }
-
-            if (this.encodeCallback != null) {
-                this.encodeCallback.error(STATUS_STOP);
-                this.encodeCallback = null;
-            }
-        }
+        stopEncode();
 
         // 编码完成时的回调。
         Handler encodeHandler = new Handler(new Handler.Callback() {
@@ -465,36 +443,32 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
                 switch (msg.what) {
                     case VorbisRecorder.FINISHED_SUCCESSFULLY:
                         // 返回ogg数据到网页。
-                        byte[] oggData = oggOutputStream.toByteArray();
-                        encodeCallback.success(oggData);
+                        if (oggOutputStream != null) {
+                            byte[] oggData = oggOutputStream.toByteArray();
+                            encodeCallback.success(oggData);
+                        }
+                        Log.i(TAG, "The encoder has finished successfully");
+                        //break; Need through.
+                    case VorbisRecorder.ERROR_INITIALIZING:
+                    case VorbisRecorder.FAILED_FOR_UNKNOWN_REASON:
                         try {
                             if (oggInputStream != null) {
                                 oggInputStream.close();
                                 oggInputStream = null;
                             }
+                        }
+                        catch (IOException ex) {
+                            Log.i(TAG, "Close input stream fail:" + ex.getMessage());
+                        }
+                        try {
                             if (oggOutputStream != null) {
                                 oggOutputStream.close();
                                 oggOutputStream = null;
                             }
                         }
                         catch (IOException ex) {
-                            Log.i(TAG, "Close stream fail:" + ex.getMessage());
+                            Log.i(TAG, "Close output stream fail:" + ex.getMessage());
                         }
-
-                        Log.i(TAG, "The encoder has finished successfully");
-                        break;
-                    case VorbisRecorder.ERROR_INITIALIZING:
-                    case VorbisRecorder.FAILED_FOR_UNKNOWN_REASON:
-                        try {
-                            oggInputStream.close();
-                            oggInputStream = null;
-                            oggOutputStream.close();
-                            oggOutputStream = null;
-                        }
-                        catch (IOException ex) {
-                            Log.i(TAG, "Close stream fail:" + ex.getMessage());
-                        }
-                        Log.i(TAG, "The encoder has fail.");
                         break;
                 }
                 return true;
@@ -541,5 +515,33 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
         }
 
         return;
+    }
+
+    private void stopEncode() {
+        if (encoderOgg != null) {
+             if (encoderOgg.isRecording()) {
+                 encoderOgg.stop();
+             }
+            encoderOgg = null;
+
+            try {
+                if (oggInputStream != null) {
+                    oggInputStream.close();
+                    oggInputStream = null;
+                }
+            }
+            catch (IOException ex) {
+                Log.i(TAG, "Close input stream fail:" + ex.getMessage());
+            }
+            try {
+                if (oggOutputStream != null) {
+                    oggOutputStream.close();
+                    oggOutputStream = null;
+                }
+            }
+            catch (IOException ex) {
+                Log.i(TAG, "Close output stream fail:" + ex.getMessage());
+            }
+        }
     }
 }
