@@ -68,6 +68,8 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
     private VorbisRecorder encoderOgg = null;
     private ByteArrayInputStream oggInputStream = null;
     private ByteArrayOutputStream oggOutputStream = null;
+    private byte[] pcmData = null;
+    private int pcmDataOffset;
 
     @Override
     public boolean execute(String action, JSONArray args, CallbackContext callbackContext) {
@@ -98,6 +100,11 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
             stopEncode();
             return true;
         }
+        else if (action.equals("feedEncodeData")) {
+            feedEncodeData(args, callbackContext);
+            return true;
+        }
+
         return false;
     }
 
@@ -427,7 +434,6 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
     }
 
     private void startEncode(JSONArray args, CallbackContext callbackContext) {
-        String inFileName;
         String encodeFormat = "ogg";
         int sampleRate = 44100;
         int bitrate = 128000;
@@ -479,7 +485,6 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
             try {
                 // 读取参数。
                 JSONObject options = args.getJSONObject(0);
-                String data = args.getString(1);
 
                 if (options.has(OUT_NUMBER_OF_CHANNELS)) {
                     numberOfChannels = options.getInt(OUT_NUMBER_OF_CHANNELS);
@@ -497,7 +502,7 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
                 if (encodeFormat.equals("ogg")) {
                     // 启动后台编码
                     encodeCallback = callbackContext;
-                    oggInputStream = new ByteArrayInputStream(Base64.decode(data, Base64.DEFAULT));
+                    oggInputStream = new ByteArrayInputStream(pcmData);
                     oggOutputStream = new ByteArrayOutputStream();
                     encoderOgg = new VorbisRecorder(oggInputStream, oggOutputStream, encodeHandler);
                     encoderOgg.start(sampleRate, numberOfChannels, bitrate);
@@ -543,5 +548,34 @@ public class AudioRecorder extends CordovaPlugin implements MediaPlayer.OnComple
                 Log.i(TAG, "Close output stream fail:" + ex.getMessage());
             }
         }
+    }
+
+    private void feedEncodeData(JSONArray args, CallbackContext callbackContext) {
+
+        if (!args.isNull(0)) {
+            try {
+                // 读取参数。
+                JSONObject options = args.getJSONObject(0);
+                String dataBase64 = args.getString(1);
+                byte[] data =  Base64.decode(dataBase64, Base64.DEFAULT);
+
+                if (options.has("initLength")) {
+                    pcmData = new byte[options.getInt("initLength")];
+                    pcmDataOffset = 0;
+                }
+
+                int copyLength = Math.min(pcmData.length - pcmDataOffset, data.length);
+                if (copyLength > 0) {
+                    System.arraycopy(data, 0, pcmData, pcmDataOffset, copyLength);
+                    pcmDataOffset += copyLength;
+                }
+            }
+            catch (JSONException ex) {
+                Log.e(TAG, ex.getMessage());
+                callbackContext.error(ex.getMessage());
+            }
+        }
+
+        return;
     }
 }
